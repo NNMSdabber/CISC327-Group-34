@@ -91,3 +91,73 @@ def test_delete_product(client):
 
     assert response.status_code == 204
     assert client.get(f"/products/{product_id}").status_code == 404
+
+def test_get_stock_level(client):
+    created = client.post(
+        "/products",
+        json={
+            "name": "USB Cable",
+            "sku": "USB-001",
+            "unit_price": 9.99,
+            "quantity_on_hand": 12,
+            "reorder_level": 3,
+        },
+    )
+    product_id = created.get_json()["id"]
+
+    response = client.get(f"/products/{product_id}/stock-level")
+
+    assert response.status_code == 200
+    assert response.get_json()["product_id"] == product_id
+    assert response.get_json()["quantity_on_hand"] == 12
+
+
+def test_stock_level_for_nonexistent_product_returns_404(client):
+    response = client.get("/products/9999/stock-level")
+
+    assert response.status_code == 404
+
+
+def test_low_stock_products(client):
+    # Below the reorder level
+    client.post(
+        "/products",
+        json={
+            "name": "Low Stock Item",
+            "sku": "LOW-001",
+            "quantity_on_hand": 2,
+            "reorder_level": 5,
+        },
+    )
+
+    # Exactly at the reorder level
+    client.post(
+        "/products",
+        json={
+            "name": "Reorder Item",
+            "sku": "LOW-002",
+            "quantity_on_hand": 5,
+            "reorder_level": 5,
+        },
+    )
+
+    # Above the reorder level
+    client.post(
+        "/products",
+        json={
+            "name": "In Stock Item",
+            "sku": "LOW-003",
+            "quantity_on_hand": 10,
+            "reorder_level": 5,
+        },
+    )
+
+    response = client.get("/products/low-stock")
+
+    assert response.status_code == 200
+    products = response.get_json()
+    product_names = [product["name"] for product in products]
+
+    assert "Low Stock Item" in product_names
+    assert "Reorder Item" in product_names
+    assert "In Stock Item" not in product_names
