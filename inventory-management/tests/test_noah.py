@@ -161,3 +161,177 @@ def test_low_stock_products(client):
     assert "Low Stock Item" in product_names
     assert "Reorder Item" in product_names
     assert "In Stock Item" not in product_names
+
+def test_incoming_transaction_increases_stock(client):
+    created = client.post(
+        "/products",
+        json={
+            "name": "Incoming Item",
+            "sku": "IN-001",
+            "quantity_on_hand": 10,
+            "reorder_level": 2,
+        },
+    )
+    product_id = created.get_json()["id"]
+
+    response = client.post(
+        "/transactions",
+        json={
+            "product_id": product_id,
+            "type": "IN",
+            "quantity": 5,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["type"] == "IN"
+    assert response.get_json()["quantity"] == 5
+
+    stock = client.get(f"/products/{product_id}/stock-level")
+    assert stock.get_json()["quantity_on_hand"] == 15
+
+
+def test_outgoing_transaction_decreases_stock(client):
+    created = client.post(
+        "/products",
+        json={
+            "name": "Outgoing Item",
+            "sku": "OUT-001",
+            "quantity_on_hand": 10,
+            "reorder_level": 2,
+        },
+    )
+    product_id = created.get_json()["id"]
+
+    response = client.post(
+        "/transactions",
+        json={
+            "product_id": product_id,
+            "type": "OUT",
+            "quantity": 3,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.get_json()["type"] == "OUT"
+
+    stock = client.get(f"/products/{product_id}/stock-level")
+    assert stock.get_json()["quantity_on_hand"] == 7
+
+
+def test_list_transactions(client):
+    created = client.post(
+        "/products",
+        json={
+            "name": "History Item",
+            "sku": "HIST-001",
+            "quantity_on_hand": 0,
+            "reorder_level": 1,
+        },
+    )
+    product_id = created.get_json()["id"]
+
+    client.post(
+        "/transactions",
+        json={
+            "product_id": product_id,
+            "type": "IN",
+            "quantity": 8,
+        },
+    )
+
+    response = client.get("/transactions")
+
+    assert response.status_code == 200
+    transactions = response.get_json()
+    assert len(transactions) == 1
+    assert transactions[0]["product_id"] == product_id
+    assert transactions[0]["quantity"] == 8
+    assert "transaction_date" in transactions[0]
+
+
+def test_filter_transactions_by_product(client):
+    first = client.post(
+        "/products",
+        json={
+            "name": "First Product",
+            "sku": "FILTER-001",
+            "quantity_on_hand": 0,
+            "reorder_level": 1,
+        },
+    ).get_json()
+
+    second = client.post(
+        "/products",
+        json={
+            "name": "Second Product",
+            "sku": "FILTER-002",
+            "quantity_on_hand": 0,
+            "reorder_level": 1,
+        },
+    ).get_json()
+
+    client.post(
+        "/transactions",
+        json={
+            "product_id": first["id"],
+            "supplier_id": 101,
+            "type": "IN",
+            "quantity": 4,
+        },
+    )
+    client.post(
+        "/transactions",
+        json={
+            "product_id": second["id"],
+            "supplier_id": 202,
+            "type": "IN",
+            "quantity": 6,
+        },
+    )
+
+    response = client.get(f"/transactions?product_id={first['id']}")
+
+    assert response.status_code == 200
+    transactions = response.get_json()
+    assert len(transactions) == 1
+    assert transactions[0]["product_id"] == first["id"]
+
+
+def test_filter_transactions_by_supplier(client):
+    created = client.post(
+        "/products",
+        json={
+            "name": "Supplier Item",
+            "sku": "SUP-001",
+            "quantity_on_hand": 0,
+            "reorder_level": 1,
+        },
+    )
+    product_id = created.get_json()["id"]
+
+    client.post(
+        "/transactions",
+        json={
+            "product_id": product_id,
+            "supplier_id": 101,
+            "type": "IN",
+            "quantity": 4,
+        },
+    )
+    client.post(
+        "/transactions",
+        json={
+            "product_id": product_id,
+            "supplier_id": 202,
+            "type": "IN",
+            "quantity": 6,
+        },
+    )
+
+    response = client.get("/transactions?supplier_id=101")
+
+    assert response.status_code == 200
+    transactions = response.get_json()
+    assert len(transactions) == 1
+    assert transactions[0]["supplier_id"] == 101
