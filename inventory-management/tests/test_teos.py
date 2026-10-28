@@ -296,3 +296,8 @@ def test_purchase_order_invalid_supplier(client):
 
     assert response.status_code == 404
 
+# Test retrieving a purchase order that does not exist
+def test_get_nonexistent_purchase_order(client):
+    response = client.get("/purchase-orders/9999")
+
+    assert response.status_code == 404
