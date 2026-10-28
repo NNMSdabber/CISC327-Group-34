@@ -63,6 +63,7 @@ app working without a REST client, and calls the same in-memory store.
 | POST | `/purchase-orders` | Create a purchase order (`supplier_id`, `product_id`, `quantity_ordered`) |
 | GET | `/purchase-orders/<id>` | Get one purchase order |
 | PUT | `/purchase-orders/<id>/receive` | Receive a pending purchase order, update product stock, record an incoming transaction, and mark the order as received |
+| GET | `/transactions?product_id=&supplier_id=` | List transactions, optionally filtered by product ID, supplier ID, or both. |
 
 ## Tests
 

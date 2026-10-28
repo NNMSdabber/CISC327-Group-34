@@ -301,3 +301,55 @@ def test_get_nonexistent_purchase_order(client):
     response = client.get("/purchase-orders/9999")
 
     assert response.status_code == 404
+
+
+# Test filtering transactions by product ID
+def test_filter_transactions_for_correct_product(client):
+    product1 = create_product(client)
+
+    response = client.post("/products", json={
+        "name": "Second Product",
+        "sku": "PRODUCT-002",
+        "unit_price": 15.0,
+        "quantity_on_hand": 10,
+        "reorder_level": 2
+    })
+    assert response.status_code == 201
+    product2 = response.get_json()["id"]
+
+    first = client.post("/transactions", json={
+        "product_id": product1,
+        "type": "IN",
+        "quantity": 5
+    })
+
+    second = client.post("/transactions", json={
+        "product_id": product2,
+        "type": "IN",
+        "quantity": 3
+    })
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    response = client.get(
+        f"/transactions?product_id={product1}"
+    )
+
+    assert response.status_code == 200
+    transactions = response.get_json()
+    assert len(transactions) == 1
+    assert transactions[0]["product_id"] == product1
+    assert transactions[0]["quantity"] == 5
+
+
+# Test filtering a product with no transactions
+def test_filter_transactions_no_matches(client):
+    product_id = create_product(client)
+
+    response = client.get(
+        f"/transactions?product_id={product_id}"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == []
