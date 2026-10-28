@@ -335,3 +335,156 @@ def test_filter_transactions_by_supplier(client):
     transactions = response.get_json()
     assert len(transactions) == 1
     assert transactions[0]["supplier_id"] == 101
+
+
+
+def test_receiving_purchase_order_increases_stock(client):
+    supplier_response = client.post(
+        "/suppliers",
+        json={
+            "name": "Test Supplier",
+            "contact_email": "supplier@example.com",
+        },
+    )
+    supplier_id = supplier_response.get_json()["id"]
+
+    product_response = client.post(
+        "/products",
+        json={
+            "name": "Delivered Item",
+            "sku": "DEL-001",
+            "unit_price": 10.0,
+            "quantity_on_hand": 5,
+            "reorder_level": 2,
+        },
+    )
+    product_id = product_response.get_json()["id"]
+
+    order_response = client.post(
+        "/purchase-orders",
+        json={
+            "supplier_id": supplier_id,
+            "product_id": product_id,
+            "quantity_ordered": 10,
+        },
+    )
+    assert order_response.status_code == 201
+    order_id = order_response.get_json()["id"]
+
+    receive_response = client.put(
+        f"/purchase-orders/{order_id}/receive"
+    )
+
+    assert receive_response.status_code == 200
+    assert receive_response.get_json()["status"] == "received"
+
+    stock_response = client.get(
+        f"/products/{product_id}/stock-level"
+    )
+    assert stock_response.status_code == 200
+    assert stock_response.get_json()["quantity_on_hand"] == 15
+
+
+def test_receiving_purchase_order_records_incoming_transaction(client):
+    supplier_response = client.post(
+        "/suppliers",
+        json={
+            "name": "Transaction Supplier",
+            "contact_email": "transactions@example.com",
+        },
+    )
+    supplier_id = supplier_response.get_json()["id"]
+
+    product_response = client.post(
+        "/products",
+        json={
+            "name": "Transaction Item",
+            "sku": "PO-TRANS-001",
+            "unit_price": 8.0,
+            "quantity_on_hand": 3,
+            "reorder_level": 1,
+        },
+    )
+    product_id = product_response.get_json()["id"]
+
+    order_response = client.post(
+        "/purchase-orders",
+        json={
+            "supplier_id": supplier_id,
+            "product_id": product_id,
+            "quantity_ordered": 7,
+        },
+    )
+    order_id = order_response.get_json()["id"]
+
+    receive_response = client.put(
+        f"/purchase-orders/{order_id}/receive"
+    )
+    assert receive_response.status_code == 200
+
+    transactions_response = client.get("/transactions")
+    assert transactions_response.status_code == 200
+
+    transactions = transactions_response.get_json()
+    matching_transactions = [
+        transaction
+        for transaction in transactions
+        if transaction["product_id"] == product_id
+        and transaction["supplier_id"] == supplier_id
+        and transaction["type"] == "IN"
+    ]
+
+    assert len(matching_transactions) == 1
+    assert matching_transactions[0]["quantity"] == 7
+
+
+def test_receiving_purchase_order_twice_does_not_duplicate_stock(client):
+    supplier_response = client.post(
+        "/suppliers",
+        json={
+            "name": "Duplicate Test Supplier",
+            "contact_email": "duplicate@example.com",
+        },
+    )
+    supplier_id = supplier_response.get_json()["id"]
+
+    product_response = client.post(
+        "/products",
+        json={
+            "name": "Duplicate Test Item",
+            "sku": "PO-DUP-001",
+            "unit_price": 12.0,
+            "quantity_on_hand": 4,
+            "reorder_level": 1,
+        },
+    )
+    product_id = product_response.get_json()["id"]
+
+    order_response = client.post(
+        "/purchase-orders",
+        json={
+            "supplier_id": supplier_id,
+            "product_id": product_id,
+            "quantity_ordered": 6,
+        },
+    )
+    order_id = order_response.get_json()["id"]
+
+    first_receive = client.put(
+        f"/purchase-orders/{order_id}/receive"
+    )
+    second_receive = client.put(
+        f"/purchase-orders/{order_id}/receive"
+    )
+
+    assert first_receive.status_code == 200
+    assert second_receive.status_code == 400
+
+    stock_response = client.get(
+        f"/products/{product_id}/stock-level"
+    )
+    assert stock_response.get_json()["quantity_on_hand"] == 10
+
+    transactions_response = client.get("/transactions")
+    transactions = transactions_response.get_json()
+    assert len(transactions) == 1

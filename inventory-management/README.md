@@ -40,6 +40,8 @@ app working without a REST client, and calls the same in-memory store.
 
 ## JSON API Endpoints
 
+## JSON API Endpoints
+
 | Method | Path | Description |
 |---|---|---|
 | GET | `/products` | List all products |
@@ -47,13 +49,20 @@ app working without a REST client, and calls the same in-memory store.
 | GET | `/products/<id>` | Get one product |
 | PUT | `/products/<id>` | Update a product |
 | DELETE | `/products/<id>` | Delete a product |
-| GET | `/products/<id>/stock-level` | Current quantity on hand |
+| GET | `/products/<id>/stock-level` | Get current quantity on hand |
+| GET | `/products/low-stock` | List products at or below their reorder level |
 | GET | `/suppliers` | List all suppliers |
 | POST | `/suppliers` | Create a supplier |
 | GET | `/suppliers/<id>` | Get one supplier |
 | PUT | `/suppliers/<id>` | Update a supplier |
 | DELETE | `/suppliers/<id>` | Delete a supplier |
+| GET | `/suppliers/<id>/products` | List products received from a supplier |
 | POST | `/transactions` | Record a stock movement (`product_id`, `type`: IN/OUT, `quantity`, optional `supplier_id`) |
+| GET | `/transactions?product_id=&supplier_id=` | Look up transactions, optionally filtered by product or supplier |
+| GET | `/purchase-orders` | List all purchase orders |
+| POST | `/purchase-orders` | Create a purchase order (`supplier_id`, `product_id`, `quantity_ordered`) |
+| GET | `/purchase-orders/<id>` | Get one purchase order |
+| PUT | `/purchase-orders/<id>/receive` | Receive a pending purchase order, update product stock, record an incoming transaction, and mark the order as received |
 | GET | `/transactions?product_id=&supplier_id=` | List transactions, optionally filtered by product ID, supplier ID, or both. |
 
 ## Tests
