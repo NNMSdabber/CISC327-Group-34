@@ -285,3 +285,14 @@ def test_cannot_receive_order_twice(client):
     second = client.put(f"/purchase-orders/{order_id}/receive")
     assert second.status_code == 400
 
+def test_purchase_order_invalid_supplier(client):
+    product_id = create_product(client)
+
+    response = client.post("/purchase-orders", json={
+        "supplier_id": 9999,
+        "product_id": product_id,
+        "quantity_ordered": 10
+    })
+
+    assert response.status_code == 404
+
