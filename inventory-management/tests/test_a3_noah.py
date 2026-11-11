@@ -235,3 +235,35 @@ def test_low_stock_notification_failure(client, monkeypatch):
     stock_response = client.get(f"/products/{product_id}/stock-level")
     assert stock_response.status_code == 200
     assert stock_response.get_json()["quantity_on_hand"] == 4
+
+
+def test_no_notification_for_normal_stock(client):
+    """Normal stock updates must not trigger a notification."""
+    from unittest.mock import patch
+
+    product_response = client.post("/products", json={
+        "name": "Normal Stock Product",
+        "sku": "A3-NORMAL",
+        "quantity_on_hand": 10,
+        "reorder_level": 5
+    })
+
+    assert product_response.status_code == 201
+    product_id = product_response.get_json()["id"]
+
+    with patch(
+        "app.routes.transactions.send_notification"
+    ) as mock_send:
+
+        response = client.post("/transactions", json={
+            "product_id": product_id,
+            "type": "OUT",
+            "quantity": 2
+        })
+
+        assert response.status_code == 201
+        mock_send.assert_not_called()
+
+    stock_response = client.get(f"/products/{product_id}/stock-level")
+    assert stock_response.status_code == 200
+    assert stock_response.get_json()["quantity_on_hand"] == 8
