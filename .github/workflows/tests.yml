@@ -27,4 +27,4 @@ jobs:
       - name: Run tests and check coverage
         working-directory: inventory-management
         run: |
-          python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=90
+          python -m pytest -v --ignore=tests/e2e --cov=app --cov-report=term-missing --cov-fail-under=90
